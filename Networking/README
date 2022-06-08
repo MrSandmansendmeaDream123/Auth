@@ -1,0 +1,64 @@
+Use the a socket interface, Cleansocks, to create a simple web client that takes a single URL on the command line. It should report the server's IP address, the response code, server type, value of the location header (if present), and and any cookies set by the server. If the server forwards the request, the client should follow. You might want to start with the posted URL downloader example. The output looks like this:
+
+Example
+[chris@localhost asst]$ headinfo http://sandbox.mc.edu/~scott/v2/syl.html
+Server at 167.160.210.32 responds 200 OK
+Server type: type Apache/2.4.51 (Fedora) OpenSSL/1.1.1l.
+No cookies were set.
+[chris@localhost asst]$ headinfo https://www.google.com
+Server at 172.217.10.196 responds 200 OK
+Server type: type gws.
+Cookies:
+   1P_JAR: 2022-01-20-03
+   NID: 511=W_57le5ZrEAJ0FLpehjgFtbYONh8XPk8YKzjn_5v7VaMrtCSA2QlW9LadnIoP9Eon7QeeFycYfCQ0Hoxx3o0DYDULdwgJ6ifuQP7zzFcbdqDC6HyhzihtWjV1qlQEaSA0ArLucQGr4tRdiiI0NXotAFpOpmLry089TDoTaKRq3Y
+[tom@localhost asst]$ headinfo  http://www.parliament.uk/visiting/visiting-and-tours/tours-of-parliament/guided-tours-of-parliament/
+Server at 104.17.150.48 responds 403 Forbidden
+Server type: type cloudflare.
+Cookies:
+   __cf_bm: FRQCRi8q8.NH5j.U8mHxhjz8LOIKhccdh2aPbFvf._o-1642649818-0-AYJHkiowhgM5UhkIT1aBY0XaBjLxFgw/w8lrEVBARN3cPQvz318ajhxoskYL3XpDlI13D8tppa9Ng3Mys8Y/HuU=
+
+
+
+The application must extract the host name and path from the URL and send an HTTP HEAD request to the indicated machine. Parse the response line and headers to get the information you need to report. The relevant header names are Server, Location and Set-Cookie. The Server will appear once or not at all. If it does not appear, just say that the server type is “Unknown”. The Location header may appear once, but usually not at all. If not present, simply don't mention it in your output. A server may set no cookies, or it may set more than one, so the Set-Cookie header may appear any number of times. If it does not appear, state that no cookies were set, otherwise list them all. You should list the name and value for each one (see below).
+
+If some networking error prevents the reception of any response from the server, or the server's response cannot be parsed as an HTTP response, print an appropriate error message. Otherwise, give the numeric response code and message from the response (even if it is an error), then print the type of server, and list any cookies set by the server. Network errors are thrown as exceptions by cleansocks, so you will need to catch them and print the value of the exception's .what() method.
+[tom@tomslap asst]$ headinfo http://www.forgetit.calm
+Error: [IPaddress::lookup(www.forgetit.calm)] Name or service not known
+
+You need only consider very simple URLs. Accept only http or https URLs, and don't look for port number or passwords. If the URL is not simple or can't be parsed, just report an error and exit.
+The value of the SetCookie header is a string which gives the name and value of the cookie. The form is something like this:
+SetCookie: name=value; other stuff
+Where the ; other stuff may or may not be present. (The standard calls this part “unparsed attributes,” even though the client must parse it. We'll discard it.) If you find a ; in the cookie string, discard the (first) ; and everything after it. If you don't find an =, then the cookie is invalid, and you should discard the whole thing. Otherwise, the name of the cookie is the portion of the string up to the first =, and the value is the portion after the first =. “First” is important here, because the value may contain additional equal signs. (Google seems to love these.) The standard says that either the name or value is allowed to be empty, but I don't know that I've seen this actually happen.
+
+If the response code is in the 300s, and the Location header is set, the server is directing the client to another location. In this case, repeat the operation using the Location URL. Keep following forwards, but limit to five fetches. Loops are an error, but also a possibility. Looks like this:
+[tom@localhost asst]$ headinfo http://sandbox.mc.edu/~bennet
+Server at 167.160.210.32 responds 301 Moved Permanently
+Server type: type Apache/2.4.51 (Fedora) OpenSSL/1.1.1l.
+Location: http://sandbox.mc.edu/~bennet/.
+No cookies were set.
+
+Following to https://news.google.com/
+
+Server at 64.233.177.101 responds 302 Found
+Server type: type ESF.
+Location: https://news.google.com/topstories?hl=en-US&gl=US&ceid=US:en.
+Cookies:
+   GN_PREF: W251bGwsIkNBSVNDd2ktdWFPUEJoQ1EtLXQtIl0_
+   NID: 511=C6aawfdY8WkX_OfdJRhXKYzt4R7o6VUPVZuVme0h2OUFaXS2wR-r1ONaq1hiVAKTOsGw1ipL0rtVdrgARzncLnA6uVf1Qb_RRNZn2VSgm_pnVaX1WrPvD1S28dLlH-85Ux44ywY5kTu3PTLHlKWaGUpd7lJSId28c78k0TB5LBI
+
+Following to https://news.google.com/topstories?hl=en-US&gl=US&ceid=US:en
+
+Server at 64.233.177.102 responds 200 OK
+Server type: type ESF.
+Cookies:
+   GN_PREF: W251bGwsIkNBSVNEQWktdWFPUEJoQ28ydF9tQVEiXQ__
+   NID: 511=mkCY8t_R8y1VktM64QrtAn8sxrsCNSte5wPFxvK_l-miqgymHQjDoR9XPK7qmcXp-GVKhwNAmvXkxENWbYW8axS4_kWQx2rimTlJKlVZVmpXtJUBTdCTZw7GiqDcBR4PYsau8DbCJ-ksILUI5sd7TVYPgNK-agLdris1iYlX95I
+
+Compiling
+
+A program which uses the base library (no TLS) can be compiled with a command like:
+g++ -o pgm pgm.cpp -lcleansocks
+
+You need the -l to say in which library to find the compiled methods. To compile a program which uses the cleantlsc, it's a tad longer:
+g++ -o spgm spgm.cpp -lcleansocks -lcleantlsc -lssl
+
